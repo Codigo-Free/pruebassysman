@@ -7,7 +7,11 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: none
+      # H2 no soporta PARTITION BY ni el paquete PL/SQL de las migraciones Flyway reales;
+      # para los slice tests (@DataJpaTest) se deja que Hibernate genere un esquema
+      # equivalente simplificado a partir de las entidades. No valida el SP real
+      # (eso lo cubre el test de integración con Testcontainers + Oracle).
+      ddl-auto: create-drop
     properties:
       hibernate:
         format_sql: true

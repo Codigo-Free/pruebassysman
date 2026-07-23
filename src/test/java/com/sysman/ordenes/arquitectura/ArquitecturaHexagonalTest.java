@@ -71,7 +71,7 @@ class ArquitecturaHexagonalTest {
                         BASE + ".infraestructura..",
                         BASE + ".aplicacion..",
                         BASE + ".dominio..",
-                        "java..", "jakarta..", "org.springframework..", "org.slf4j..",
+                        "java..", "javax..", "jakarta..", "org.springframework..", "org.slf4j..",
                         "com.fasterxml..", "io.swagger..", "org.mapstruct..", "lombok..",
                         "oracle.jdbc..", "io.micrometer.."
                 )
