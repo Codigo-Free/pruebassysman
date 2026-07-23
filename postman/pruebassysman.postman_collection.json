@@ -1,0 +1,464 @@
+{
+  "info": {
+    "_postman_id": "9f6a6b1a-2b5e-4b8e-8a1a-3f1c8d9e2a10",
+    "name": "Sysman - Órdenes Operativas API",
+    "description": "Colección para probar la API REST de gestión de órdenes operativas (/api/v1/orden). Ver docs/api.md en el repositorio para el contrato completo.\n\nFlujo recomendado: correr las carpetas en orden (1 → 4). Las requests de creación y actualización guardan `ordenId`/`ordenVersion` como variables de colección para encadenar las siguientes llamadas automáticamente.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "idCliente", "value": "1", "type": "string" },
+    { "key": "ordenId", "value": "", "type": "string" },
+    { "key": "ordenVersion", "value": "0", "type": "string" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.request.headers.has('X-Correlation-Id')) {",
+          "    pm.request.headers.add({ key: 'X-Correlation-Id', value: 'postman-' + Date.now() });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Crear Orden",
+      "item": [
+        {
+          "name": "Crear orden - éxito (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('Estado inicial es CREADA', function () {",
+                  "    pm.expect(body.estado).to.eql('CREADA');",
+                  "});",
+                  "",
+                  "pm.test('Version inicial es 0', function () {",
+                  "    pm.expect(body.version).to.eql(0);",
+                  "});",
+                  "",
+                  "if (body.id) {",
+                  "    pm.collectionVariables.set('ordenId', body.id);",
+                  "    pm.collectionVariables.set('ordenVersion', body.version);",
+                  "    console.log('ordenId guardado:', body.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idCliente\": {{idCliente}},\n  \"tipo\": \"INSTALACION\",\n  \"descripcion\": \"Instalar medidor\",\n  \"direccionServicio\": \"Calle 1 # 2-3\",\n  \"usuarioCrea\": \"sysman\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orden",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orden"]
+            },
+            "description": "Crea una orden nueva. Guarda `ordenId` y `ordenVersion` como variables de colección para las siguientes requests."
+          }
+        },
+        {
+          "name": "Crear orden - cliente inexistente (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Incluye correlationId', function () {",
+                  "    pm.expect(pm.response.json()).to.have.property('correlationId');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idCliente\": 999999,\n  \"tipo\": \"INSTALACION\",\n  \"descripcion\": \"Instalar medidor\",\n  \"direccionServicio\": \"Calle 1 # 2-3\",\n  \"usuarioCrea\": \"sysman\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orden",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orden"]
+            },
+            "description": "idCliente 999999 no existe (los clientes de ejemplo son 1-3, ver V5__datos_semilla_clientes.sql)."
+          }
+        },
+        {
+          "name": "Crear orden - validación fallida (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Detalla los errores de campo', function () {",
+                  "    pm.expect(pm.response.json()).to.have.property('errores');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipo\": \"INSTALACION\",\n  \"usuarioCrea\": \"sysman\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orden",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orden"]
+            },
+            "description": "Falta idCliente (@NotNull) → 400 con el detalle de errores por campo."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Consultar Orden",
+      "item": [
+        {
+          "name": "Consultar orden - éxito (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('El id coincide con ordenId', function () {",
+                  "    pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get('ordenId')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orden/{{ordenId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orden", "{{ordenId}}"]
+            },
+            "description": "Requiere haber corrido antes 'Crear orden - éxito' para tener un ordenId válido."
+          }
+        },
+        {
+          "name": "Consultar orden - no encontrada (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orden/999999",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orden", "999999"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Actualizar Estado",
+      "item": [
+        {
+          "name": "Actualizar estado - válido CREADA→ASIGNADA (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('Estado pasó a ASIGNADA', function () {",
+                  "    pm.expect(body.estado).to.eql('ASIGNADA');",
+                  "});",
+                  "",
+                  "pm.test('La version se incrementó', function () {",
+                  "    pm.expect(body.version).to.be.above(Number(pm.collectionVariables.get('ordenVersion')) - 1);",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('ordenVersion', body.version);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estadoNuevo\": \"ASIGNADA\",\n  \"versionEsperada\": {{ordenVersion}},\n  \"usuarioModifica\": \"operador1\",\n  \"observacion\": \"asignada a técnico\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orden/{{ordenId}}/estado",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orden", "{{ordenId}}", "estado"]
+            },
+            "description": "Transición válida CREADA → ASIGNADA. Actualiza ordenVersion a 1 para las siguientes requests."
+          }
+        },
+        {
+          "name": "Actualizar estado - transición inválida (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 422 Unprocessable Entity', function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});",
+                  "",
+                  "pm.test('El detalle menciona la transición', function () {",
+                  "    pm.expect(pm.response.json().detail).to.include('transicionar');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estadoNuevo\": \"COMPLETADA\",\n  \"versionEsperada\": {{ordenVersion}},\n  \"usuarioModifica\": \"operador1\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orden/{{ordenId}}/estado",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orden", "{{ordenId}}", "estado"]
+            },
+            "description": "ASIGNADA → COMPLETADA no es una transición válida (ver matriz en docs/modelo-datos.md). Requiere haber corrido antes la request de transición válida."
+          }
+        },
+        {
+          "name": "Actualizar estado - conflicto de versión (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409 Conflict', function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('El detalle menciona el conflicto', function () {",
+                  "    pm.expect(pm.response.json().detail).to.include('modificada por otro proceso');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estadoNuevo\": \"EN_PROCESO\",\n  \"versionEsperada\": 0,\n  \"usuarioModifica\": \"operador1\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orden/{{ordenId}}/estado",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orden", "{{ordenId}}", "estado"]
+            },
+            "description": "Fuerza versionEsperada=0 a propósito: si ya se corrió la transición válida antes, la version real ya es 1 → 409 Conflict."
+          }
+        },
+        {
+          "name": "Actualizar estado - orden inexistente (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estadoNuevo\": \"ASIGNADA\",\n  \"versionEsperada\": 0,\n  \"usuarioModifica\": \"operador1\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orden/999999/estado",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orden", "999999", "estado"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Listar Órdenes",
+      "item": [
+        {
+          "name": "Listar sin filtros (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('Trae la estructura de paginación', function () {",
+                  "    pm.expect(body).to.have.all.keys('contenido', 'pagina', 'tamanoPagina', 'totalElementos', 'totalPaginas');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orden?pagina=0&tamanoPagina=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orden"],
+              "query": [
+                { "key": "pagina", "value": "0" },
+                { "key": "tamanoPagina", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Listar con filtro de estado y fechas (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Todos los elementos tienen el estado filtrado', function () {",
+                  "    const body = pm.response.json();",
+                  "    body.contenido.forEach(function (orden) {",
+                  "        pm.expect(orden.estado).to.eql('ASIGNADA');",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orden?estado=ASIGNADA&fechaInicio=2026-01-01T00:00:00Z&fechaFin=2027-01-01T00:00:00Z&pagina=0&tamanoPagina=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orden"],
+              "query": [
+                { "key": "estado", "value": "ASIGNADA" },
+                { "key": "fechaInicio", "value": "2026-01-01T00:00:00Z" },
+                { "key": "fechaFin", "value": "2027-01-01T00:00:00Z" },
+                { "key": "pagina", "value": "0" },
+                { "key": "tamanoPagina", "value": "20" }
+              ]
+            },
+            "description": "Requiere haber corrido antes la transición válida para que exista al menos una orden ASIGNADA."
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Documentación",
+      "item": [
+        {
+          "name": "OpenAPI JSON",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api-docs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api-docs"]
+            },
+            "description": "Especificación OpenAPI completa. La UI interactiva está en {{baseUrl}}/swagger-ui.html."
+          }
+        }
+      ]
+    }
+  ]
+}
