@@ -17,4 +17,8 @@ public record PaginaResultado<T>(
     public <R> PaginaResultado<R> mapear(Function<T, R> mapeador) {
         return new PaginaResultado<>(contenido.stream().map(mapeador).toList(), pagina, tamanoPagina, totalElementos);
     }
+
+    public int totalPaginas() {
+        return tamanoPagina == 0 ? 0 : (int) Math.ceil((double) totalElementos / tamanoPagina);
+    }
 }
