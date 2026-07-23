@@ -38,6 +38,15 @@ Pruebas de integración contra Oracle real (Testcontainers):
 mvn verify -Pintegration
 ```
 
+## Colección de Postman
+
+En [`postman/`](postman/) hay una colección lista para probar los 4 endpoints (`pruebassysman.postman_collection.json`) junto con un entorno para `localhost` (`pruebassysman-local.postman_environment.json`). Cubre los flujos felices y los errores esperados (400, 404, 409, 422), encadenando automáticamente el `id`/`version` de la orden creada entre requests. También se puede correr por línea de comandos con [Newman](https://github.com/postmanlabs/newman):
+
+```bash
+npx newman run postman/pruebassysman.postman_collection.json \
+  -e postman/pruebassysman-local.postman_environment.json
+```
+
 ## Endpoints principales
 
 | Método | Ruta | Descripción |

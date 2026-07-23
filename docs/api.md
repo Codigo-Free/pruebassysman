@@ -2,6 +2,8 @@
 
 Base URL: `/api/v1/orden`. Documentación interactiva en `/swagger-ui.html` (OpenAPI en `/api-docs`).
 
+También hay una colección de Postman lista para usar en [`../postman/`](../postman/), con los flujos felices y los 4 códigos de error cubiertos por tests automáticos (ver el README para el comando de Newman).
+
 ## Crear orden
 
 ```
