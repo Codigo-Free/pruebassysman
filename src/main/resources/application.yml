@@ -14,6 +14,12 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+      naming:
+        # Las tablas/columnas de las migraciones Flyway se crean en mayúsculas (convención
+        # Oracle para identificadores no citados). La estrategia por defecto de Spring Boot
+        # convierte los nombres a minúsculas, lo que rompe la validación de esquema de
+        # Hibernate; esta estrategia respeta el nombre exacto indicado en @Table/@Column.
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
     open-in-view: false
     properties:
       hibernate:
