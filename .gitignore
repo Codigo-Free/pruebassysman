@@ -1,0 +1,32 @@
+# Herramientas de IA (uso local únicamente, no se sube al repo)
+CLAUDE.md
+.claude/
+.mcp.json
+
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Documentos fuente de la prueba técnica (privados, no se publican)
+*.pdf
+
+# Docker
+docker/oradata/

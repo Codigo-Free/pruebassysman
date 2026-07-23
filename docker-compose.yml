@@ -1,0 +1,21 @@
+services:
+  oracle-db:
+    image: gvenzl/oracle-free:23-slim
+    container_name: sysman-oracle
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_PASSWORD:-OrdenesPass123}
+      APP_USER: ${DB_USER:-ordenes_app}
+      APP_USER_PASSWORD: ${DB_PASSWORD:-OrdenesApp123}
+    ports:
+      - "1521:1521"
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+volumes:
+  oracle-data:
