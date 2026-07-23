@@ -13,6 +13,17 @@ public class TransicionEstadoInvalidaException extends RuntimeException {
         this.estadoDestino = estadoDestino;
     }
 
+    /**
+     * Usado cuando la transición inválida es detectada por el procedimiento PL/SQL
+     * (autoridad final) en lugar de la validación fail-fast en memoria, y por lo tanto
+     * solo se dispone del mensaje textual, no de los estados tipados.
+     */
+    public TransicionEstadoInvalidaException(String mensaje) {
+        super(mensaje);
+        this.estadoActual = null;
+        this.estadoDestino = null;
+    }
+
     public EstadoOrden getEstadoActual() {
         return estadoActual;
     }
