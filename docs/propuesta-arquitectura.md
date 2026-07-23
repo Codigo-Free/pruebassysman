@@ -1,45 +1,60 @@
 # Propuesta de Arquitectura — Sistema de Gestión de Órdenes Operativas
 
-> Versión final, ajustada tras la implementación. La propuesta original (entregable de 2-3 páginas de la prueba técnica) se mantiene íntegra en su estructura; aquí se documenta cómo quedó efectivamente construida cada decisión.
+1. Arquitectura propuesta
 
-## 1. Arquitectura propuesta
+Propuse una Arquitectura Hexagonal con Spring Boot, separando la aplicación en tres capas:
 
-Arquitectura **Hexagonal (Puertos y Adaptadores)** sobre un monolito modular con Spring Boot 4, organizada en tres capas (ver [`arquitectura.md`](arquitectura.md) para el detalle de paquetes):
+Dominio: contiene las reglas de negocio y no depende de ninguna tecnología.
+Aplicación: implementa los casos de uso y se comunica mediante puertos e interfaces.
+Infraestructura: aquí están los controladores REST, la persistencia con JPA y la comunicación con la base de datos.
 
-- **Dominio** (`dominio`): `Orden` y `Cliente` (aggregate roots), `EstadoOrden`/`TipoOrden` (value objects), `OrdenHistorico` (entidad inmutable de auditoría). Sin dependencias externas — verificado automáticamente con un test ArchUnit.
-- **Aplicación** (`aplicacion`): puertos de entrada (casos de uso: crear, consultar, actualizar estado, listar) y puertos de salida (repositorios, invocación del procedimiento PL/SQL), con DTOs de comando/resultado propios.
-- **Infraestructura** (`infraestructura`): adaptador REST (`OrdenController`), adaptadores de persistencia JPA, adaptador JDBC hacia el procedimiento PL/SQL, manejo global de excepciones y logging transversal.
+Esta separación permite cambiar tecnologías o realizar pruebas sin afectar la lógica del negocio.
 
-## 2. Justificación técnica
+2. ¿Por qué elegí esta arquitectura?
 
-Aislar el dominio de la infraestructura permite escalar o sustituir la capa de exposición (API) o el acceso a datos sin tocar las reglas de negocio, algo relevante dado el volumen esperado (1 millón de órdenes/mes). La inyección de dependencias vía puertos habilita pruebas unitarias con mocks en cada capa (dominio: JUnit puro; aplicación: Mockito sobre los puertos; adaptadores: `@DataJpaTest`/`@WebMvcTest`), sin necesidad de una base de datos real salvo en la suite de integración.
+Porque facilita el mantenimiento y el crecimiento de la aplicación.
 
-## 3. Estrategia de manejo de transacciones
+También permite:
 
-Dos mecanismos complementarios, tal como se definió en la propuesta original:
+Hacer pruebas unitarias de forma sencilla.
+Mantener desacoplada la lógica del negocio.
+Cambiar la base de datos o la API sin modificar el dominio.
+Mantener un código más limpio y organizado.
 
-- **A nivel de aplicación (Spring):** `CrearOrdenService.crear()` está anotado `@Transactional` — si falla la validación del cliente o la inserción, se hace rollback automático.
-- **A nivel de base de datos (PL/SQL):** la actualización de estado y la inserción en `ORDEN_HISTORICO` se delegan por completo al paquete `PKG_ORDENES.SP_ACTUALIZAR_ESTADO_ORDEN`, invocado vía `SimpleJdbcCall` **sin** una transacción Spring envolvente. Esto evita mezclar dos gestores de transacciones (Spring/JPA y la transacción implícita del bloque PL/SQL) sobre la misma operación, y garantiza que la actualización del estado y el registro de auditoría sean atómicos incluso si el procedimiento se invoca desde otro lugar (batch, otro servicio) en el futuro.
+Además, aplicaría buenas prácticas como revisión de código, pruebas automatizadas y un pipeline de integración continua para asegurar la calidad antes de cada despliegue.
 
-## 4. Manejo de concurrencia
+3. Manejo de transacciones
 
-Bloqueo optimista con doble verificación:
+Utilizaría transacciones de Spring para garantizar que una operación se complete completamente o no se ejecute.
 
-- La entidad `OrdenJpaEntity` tiene `@Version` (columna `VERSION`), usado en las lecturas (`GET /orden/{id}`, listado) para exponer la versión vigente al cliente.
-- La verificación real de concurrencia ocurre **dentro del procedimiento PL/SQL**: `UPDATE ORDEN SET ... WHERE ID_ORDEN=? AND VERSION=?`; si `SQL%ROWCOUNT=0` (otro proceso ya modificó la orden), se lanza `ORA-20003`, traducido a `ConflictoVersionOrdenException` y mapeado a **HTTP 409 Conflict**. Esto reemplaza el `OptimisticLockException` de JPA porque la actualización de estado nunca pasa por un `save()` de JPA — ver ADR correspondiente en [`decisiones-tecnicas.md`](decisiones-tecnicas.md).
+Cuando la lógica crítica está en un procedimiento almacenado de Oracle, dejaría que sea el mismo procedimiento quien controle la transacción para mantener la consistencia de los datos.
 
-## 5. Estrategia de indexación en Oracle
+4. Manejo de concurrencia
 
-- **B-Tree únicos:** PK de `CLIENTE`, `ORDEN` y `ORDEN_HISTORICO` (`ID_CLIENTE`, `ID_ORDEN`, `ID_HISTORICO`).
-- **B-Tree normales:** sobre las FK (`ORDEN.ID_CLIENTE`, `ORDEN_HISTORICO.ID_ORDEN`), evitando bloqueos de tabla completa en operaciones sobre las tablas maestras.
-- **Índice compuesto:** `IDX_ORDEN_ESTADO_FECHA (ESTADO, FECHA_CREACION)`, que soporta directamente el filtro de `GET /orden?estado=&fechaInicio=&fechaFin=`.
-- **Particionamiento:** `ORDEN` y `ORDEN_HISTORICO` particionadas por `RANGE INTERVAL` mensual sobre su columna de fecha, para que el volumen mensual (1M órdenes) quede aislado por partición y las lecturas históricas no degraden las consultas recientes.
+Usaría bloqueo optimista mediante una columna de versión.
 
-## 6. Estrategia de versionamiento de API
+Así, si dos usuarios intentan modificar la misma orden al mismo tiempo, el sistema detecta el conflicto y evita sobrescribir información.
 
-Versionado por URI: todos los endpoints viven bajo `/api/v1/orden`. Documentado automáticamente con springdoc-openapi (`/swagger-ui.html`, `/api-docs`).
+5. Estrategia de indexación
 
-## 7. Estrategia de logging y auditoría
+Crearía índices en:
 
-- **Logging:** logs estructurados en JSON (logback + `logstash-logback-encoder`). `CorrelationIdFilter` genera o propaga un `X-Correlation-Id` por petición HTTP y lo publica en el MDC, de modo que aparece en cada línea de log de esa petición (incluidos los errores capturados por `GlobalExceptionHandler`, que lo devuelve también en el cuerpo del `ProblemDetail`).
-- **Auditoría de datos:** `ORDEN_HISTORICO` se llena exclusivamente desde `SP_ACTUALIZAR_ESTADO_ORDEN`, con `usuario_modifica`, `fecha_modificacion`, `estado_anterior` y `estado_nuevo` inmutables — nunca se escribe desde la capa de aplicación Java, evitando que quede desincronizada del estado real de la orden.
+Las llaves primarias.
+Las llaves foráneas.
+Las columnas más utilizadas en búsquedas y filtros.
+
+Si el volumen de información crece mucho, particionaría las tablas por fecha para mejorar el rendimiento de las consultas históricas.
+
+6. Versionamiento de la API
+
+Versionaría la API por la URL, por ejemplo:
+
+/api/v1/orden
+
+Esto permite evolucionar el servicio sin afectar a los consumidores existentes.
+
+7. Logging y auditoría
+
+Implementaría un logging centralizado para facilitar el seguimiento de errores y las solicitudes.
+
+Para la auditoría, registraría cada cambio importante de una orden, indicando quién realizó el cambio, cuándo se hizo y cuál fue el estado anterior y el nuevo. Esto facilita el soporte y la trazabilidad.
