@@ -1,0 +1,32 @@
+name: CI - Integración (Oracle real)
+
+# No bloqueante en cada PR: arrancar Oracle vía Testcontainers toma ~1-2 minutos.
+# Se ejecuta manualmente o cada noche para no ralentizar el feedback normal de PRs.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 7 * * *'
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Correr pruebas de integración (Testcontainers + Oracle real)
+        run: mvn -B verify -Pintegration
+
+      - name: Publicar resultados de integración
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failsafe-reports
+          path: target/failsafe-reports
